@@ -373,7 +373,7 @@ describe('interpreter', () => {
       states: {
         foo: {
           exit: () => {
-            service.state.value === 'foo';
+            executed = service.state.value === 'foo';
           },
           on: {
             BAR: 'bar'

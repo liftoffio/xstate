@@ -157,13 +157,21 @@ export function createMachine<
     INIT_EVENT as TEvent
   );
 
+  const [initialExitActions, initialExitContext] = handleActions(
+    toArray(fsmConfig.states[fsmConfig.initial].exit).map((action) =>
+      toActionObject(action, implementations.actions)
+    ),
+    fsmConfig.context!,
+    INIT_EVENT as TEvent
+  );
+
   const machine = {
     config: fsmConfig,
     _options: implementations,
     initialState: {
       value: fsmConfig.initial,
-      exitContext: initialContext,
-      exitActions: [],
+      exitContext: initialExitContext,
+      exitActions: initialExitActions,
       actions: initialActions,
       context: initialContext,
       matches: createMatcher(fsmConfig.initial)
@@ -283,6 +291,16 @@ const executeStateActions = <
   event: TEvent | InitEvent
 ) => state.actions.forEach(({ exec }) => exec && exec(state.context, event));
 
+const executeExitActions = <
+  TContext extends object,
+  TEvent extends EventObject = any,
+  TState extends Typestate<TContext> = { value: any; context: TContext }
+>(
+  state: StateMachine.State<TContext, TEvent, TState>,
+  event: TEvent | InitEvent
+) =>
+  state.exitActions.forEach(({ exec }) => exec && exec(state.context, event));
+
 export function interpret<
   TContext extends object,
   TEvent extends EventObject = EventObject,
@@ -300,6 +318,7 @@ export function interpret<
       if (status !== InterpreterStatus.Running) {
         return;
       }
+      executeExitActions(state, toEventObject(event));
       state = machine.transition(state, event);
       executeStateActions(state, toEventObject(event));
       listeners.forEach((listener) => listener(state));
