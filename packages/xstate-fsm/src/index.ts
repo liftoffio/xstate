@@ -85,6 +85,8 @@ function createUnchangedState<
 >(value: string, context: TC): StateMachine.State<TC, TE, TS> {
   return {
     value,
+    exitContext: context,
+    exitActions: [],
     context,
     actions: [],
     changed: false,
@@ -160,6 +162,8 @@ export function createMachine<
     _options: implementations,
     initialState: {
       value: fsmConfig.initial,
+      exitContext: initialContext,
+      exitActions: [],
       actions: initialActions,
       context: initialContext,
       matches: createMatcher(fsmConfig.initial)
@@ -187,6 +191,14 @@ export function createMachine<
         );
       }
 
+      const [exitActions, exitContext] = handleActions(
+        toArray(stateConfig.exit).map((action) =>
+          toActionObject(action, implementations.actions)
+        ),
+        context,
+        eventObject
+      );
+
       if (stateConfig.on) {
         const transitions: Array<
           StateMachine.Transition<TContext, TEvent, TState['value']>
@@ -198,7 +210,7 @@ export function createMachine<
 
         for (const transition of transitions) {
           if (transition === undefined) {
-            return createUnchangedState(value, context);
+            return createUnchangedState(value, exitContext);
           }
 
           const {
@@ -222,12 +234,12 @@ export function createMachine<
             );
           }
 
-          if (cond(context, eventObject)) {
+          if (cond(exitContext, eventObject)) {
             const allActions = (
               isTargetless
                 ? toArray(actions)
                 : ([] as any[])
-                    .concat(stateConfig.exit, actions, nextStateConfig.entry)
+                    .concat(actions, nextStateConfig.entry)
                     .filter((a) => a)
             ).map<StateMachine.ActionObject<TContext, TEvent>>((action) =>
               toActionObject(action, (machine as any)._options.actions)
@@ -235,7 +247,7 @@ export function createMachine<
 
             const [nonAssignActions, nextContext, assigned] = handleActions(
               allActions,
-              context,
+              exitContext,
               eventObject
             );
 
@@ -243,6 +255,8 @@ export function createMachine<
 
             return {
               value: resolvedTarget,
+              exitContext,
+              exitActions,
               context: nextContext,
               actions: nonAssignActions,
               changed:
@@ -310,6 +324,8 @@ export function interpret<
             : { context: machine.config.context!, value: initialState };
         state = {
           value: resolved.value,
+          exitContext: resolved.context,
+          exitActions: [],
           actions: [],
           context: resolved.context,
           matches: createMatcher(resolved.value)
